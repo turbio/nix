@@ -154,7 +154,7 @@ static Expr * makeCall(Exprs & exprs, PosIdx pos, Expr * fn, Expr * arg) {
 %token <StringToken> STR "string"
 %token <StringToken> IND_STR "indented string"
 %token <NixInt> INT_LIT "integer"
-%token <NixFloat> FLOAT_LIT "floating-point literal"
+%token <NixMaybeFloat> FLOAT_LIT "floating-point literal"
 %token <StringToken> PATH "path"
 %token <StringToken> HPATH "'~/…' path"
 %token <StringToken> SPATH "'<…>' path"

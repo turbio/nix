@@ -175,9 +175,9 @@ struct ExprFloat : Expr
 {
     Value v;
 
-    ExprFloat(NixFloat nf)
+    ExprFloat(NixMaybeFloat nf)
     {
-        v.mkFloat(nf);
+        v.mkRational(nf.str);
     };
 
     Value * maybeThunk(EvalState & state, Env & env) override;

@@ -21,6 +21,7 @@
 
 #include <boost/unordered/unordered_flat_map_fwd.hpp>
 #include <nlohmann/json_fwd.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
 
 #if defined(__x86_64__) && defined(__SSE2__)
 #  include <emmintrin.h>
@@ -51,6 +52,7 @@ enum InternalType {
     tExternal,
     tPrimOp,
     tAttrs,
+    tRational,
     /* layout: Pair of pointers payload */
     tFirstPairOfPointers,
     tListSmall = tFirstPairOfPointers,
@@ -85,6 +87,7 @@ typedef enum {
     nList,
     nFunction,
     nExternal,
+    nRational,
 } ValueType;
 
 class Bindings;
@@ -106,11 +109,171 @@ class Printer;
 using NixInt = checked::Checked<int64_t>;
 using NixFloat = double;
 
+using cpp_int = boost::multiprecision::checked_cpp_int;
+using cpp_rational = boost::multiprecision::cpp_rational;
+
+struct NixMaybeFloat
+{
+    std::string str; // Store a copy, not just a pointer
+
+    NixMaybeFloat() {}
+
+    explicit NixMaybeFloat(const char * s)
+        : str(s)
+    {
+    }
+};
+
+struct NixRational
+{
+    boost::multiprecision::cpp_rational v;
+
+    NixRational(cpp_rational o)
+        : v(o)
+    {
+    }
+
+    NixRational(NixInt i)
+        : v(i.value)
+    {
+    }
+
+    // nix historically used strtod(3) to parse floats from tokens.
+    // Only a subset must be implemented as the lexer defines floats as:
+    // (([1-9][0-9]*\.[0-9]*)|(0?\.[0-9]+))([Ee][+-]?[0-9]+)?
+    NixRational(const std::string & s)
+    {
+        std::size_t pos = 0;
+        const std::size_t n = s.size();
+
+        bool negative = false;
+        if (s[pos] == '+' || s[pos] == '-') {
+            negative = (s[pos] == '-');
+            ++pos;
+        }
+
+        if (pos >= n) {
+            throw std::invalid_argument("sign only, no digits");
+        }
+
+        std::size_t e_pos = s.find_first_of("eE", pos);
+        std::string mantissa = s.substr(pos, e_pos == std::string::npos ? n - pos : e_pos - pos);
+
+        cpp_int exp10 = 0;
+        if (e_pos != std::string::npos) {
+            std::string exp_str = s.substr(e_pos + 1);
+            if (exp_str.empty()) {
+                throw std::invalid_argument("missing exponent digits");
+            }
+            exp10 = cpp_int(exp_str);
+        }
+
+        std::size_t dot_pos = mantissa.find('.');
+        if (dot_pos == std::string::npos) {
+            throw std::invalid_argument("expected decimal point in mantissa");
+        }
+
+        std::string int_part = mantissa.substr(0, dot_pos);
+        std::string frac_part = mantissa.substr(dot_pos + 1);
+
+        const std::size_t frac_len = frac_part.size();
+        long long k = static_cast<long long>(exp10 - frac_len);
+
+        std::string digits = int_part + frac_part;
+
+        cpp_int numer = cpp_int(digits);
+        if (negative) {
+            numer = -numer;
+        }
+
+        cpp_int denom = 1;
+
+        if (k > 0) {
+            numer *= boost::multiprecision::pow(cpp_int(10), k);
+        } else if (k < 0) {
+            denom = boost::multiprecision::pow(cpp_int(10), -k);
+        }
+
+        v = cpp_rational(numer, denom);
+    }
+
+    // open questions:
+    // - how to format repeating decimals?
+    std::string to_string()
+    {
+        if (v == 0)
+            return "0.0";
+
+        cpp_int num = numerator(v);
+        cpp_int den = denominator(v);
+
+        bool negative = num < 0;
+        if (negative)
+            num = -num;
+
+        std::string out;
+
+        if (negative)
+            out += '-';
+
+        cpp_int int_part = num / den;
+        out += int_part.str();
+        out += '.';
+
+        cpp_int rem = num % den;
+
+        do {
+            rem *= 10;
+            cpp_int digit = rem / den;
+            out += static_cast<char>('0' + digit.convert_to<int>());
+            rem = rem % den;
+        } while (rem != 0);
+
+        return out;
+    }
+
+    double to_float()
+    {
+        return v.convert_to<double>();
+    }
+
+    bool operator==(const NixRational & other) const noexcept
+    {
+        return v == other.v;
+    }
+
+    bool operator==(long other) const noexcept
+    {
+        return v == other;
+    }
+
+    NixRational operator+(const NixRational & other) const
+    {
+        return NixRational(v + other.v);
+    }
+
+    NixRational operator-(const NixRational & other) const
+    {
+        return NixRational(v - other.v);
+    }
+
+    NixRational operator*(const NixRational & other) const
+    {
+        return NixRational(v * other.v);
+    }
+
+    NixRational operator/(const NixRational & other) const
+    {
+        return NixRational(v / other.v);
+    }
+};
+
 /**
  * External values must descend from ExternalValueBase, so that
  * type-agnostic nix functions (e.g. showType) can be implemented
  */
 class ExternalValueBase
+
 {
     friend std::ostream & operator<<(std::ostream & str, const ExternalValueBase & v);
     friend class Printer;
@@ -515,7 +678,8 @@ struct PayloadTypeToInternalType
     MACRO(ValueBase::PrimOpApplicationThunk, primOpApp, tPrimOpApp) \
     MACRO(ExternalValueBase *, external, tExternal)                 \
     MACRO(ValueBase::Failed *, failed, tFailed)                     \
-    MACRO(NixFloat, fpoint, tFloat)
+    MACRO(NixFloat, fpoint, tFloat)                                 \
+    MACRO(NixRational *, rational, tRational)
 
 #define NIX_VALUE_PAYLOAD_TYPE(T, FIELD_NAME, DISCRIMINATOR) \
     template<>                                               \
@@ -933,6 +1097,12 @@ protected:
         failed = std::bit_cast<Failed *>(payload[1]);
     }
 
+    void getStorage(NixRational *& rational) const noexcept
+    {
+        Payload payload = loadPayload();
+        rational = std::bit_cast<NixRational *>(payload[1]);
+    }
+
     void setStorage(NixInt integer) noexcept
     {
         setSingleDWordPayload<tInt>(integer.value);
@@ -986,6 +1156,11 @@ protected:
     void setStorage(Failed * failed) noexcept
     {
         setSingleDWordPayload<tFailed>(std::bit_cast<PackedPointer>(failed));
+    }
+
+    void setStorage(NixRational * rational) noexcept
+    {
+        setSingleDWordPayload<tRational>(std::bit_cast<PackedPointer>(rational));
     }
 };
 
@@ -1287,6 +1462,7 @@ public:
             t[tBool] = nBool;
             t[tNull] = nNull;
             t[tFloat] = nFloat;
+            t[tRational] = nRational;
             t[tFailed] = nFailed;
             t[tExternal] = nExternal;
             t[tAttrs] = nAttrs;
@@ -1341,6 +1517,7 @@ public:
         case tBool:
         case tNull:
         case tFloat:
+        case tRational:
         case tExternal:
         case tPrimOp:
         case tAttrs:
@@ -1464,6 +1641,16 @@ public:
         setStorage(new Value::Failed(e, recovery));
     }
 
+    inline void mkRational(std::string str) noexcept
+    {
+        setStorage(new NixRational(str));
+    }
+
+    inline void mkRational(NixRational r) noexcept
+    {
+        setStorage(new NixRational(r));
+    }
+
     bool isList() const noexcept
     {
         return isa<tListSmall, tListN>();
@@ -1552,6 +1739,11 @@ public:
     ClosureThunk thunk() const noexcept
     {
         return getStorage<ClosureThunk>();
+    }
+
+    NixRational * rational() const noexcept
+    {
+        return getStorage<NixRational *>();
     }
 
     PrimOpApplicationThunk primOpApp() const noexcept
