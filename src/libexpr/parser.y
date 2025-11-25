@@ -143,7 +143,7 @@ static Expr * makeCall(Exprs & exprs, PosIdx pos, Expr * fn, Expr * arg) {
 %token <StringToken> ID
 %token <StringToken> STR IND_STR
 %token <NixInt> INT_LIT
-%token <NixFloat> FLOAT_LIT
+%token <NixMaybeFloat> FLOAT_LIT
 %token <StringToken> PATH HPATH SPATH PATH_END
 %token <StringToken> URI
 %token IF THEN ELSE ASSERT WITH LET IN_KW REC INHERIT EQ NEQ AND OR IMPL OR_KW

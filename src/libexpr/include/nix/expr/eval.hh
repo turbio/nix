@@ -665,6 +665,7 @@ public:
      */
     NixInt forceInt(Value & v, const PosIdx pos, std::string_view errorCtx);
     NixFloat forceFloat(Value & v, const PosIdx pos, std::string_view errorCtx);
+    NixRational forceRational(Value & v, const PosIdx pos, std::string_view errorCtx);
     bool forceBool(Value & v, const PosIdx pos, std::string_view errorCtx);
 
     void forceAttrs(Value & v, const PosIdx pos, std::string_view errorCtx);

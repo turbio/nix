@@ -90,6 +90,9 @@ void printAmbiguous(
     case nFloat:
         str << v.fpoint();
         break;
+    case nRational:
+        str << v.rational()->to_string();
+        break;
     default:
         printError("Nix evaluator internal error: printAmbiguous: invalid value type");
         unreachable();

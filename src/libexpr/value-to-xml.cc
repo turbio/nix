@@ -71,6 +71,10 @@ static void printValueAsXML(
 
     switch (v.type()) {
 
+    case nRational:
+        doc.writeEmptyElement("float", singletonAttrs("value", fmt("%1%", v.rational()->to_string())));
+        break;
+
     case nInt:
         doc.writeEmptyElement("int", singletonAttrs("value", fmt("%1%", v.integer())));
         break;

@@ -198,6 +198,8 @@ ValueType nix_get_type(nix_c_context * context, const nix_value * value)
             return NIX_TYPE_INT;
         case nFloat:
             return NIX_TYPE_FLOAT;
+        case nRational:
+            return NIX_TYPE_FLOAT;
         case nBool:
             return NIX_TYPE_BOOL;
         case nString:

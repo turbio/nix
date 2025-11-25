@@ -155,13 +155,8 @@ or          { return OR_KW; }
               }
               return INT_LIT;
             }
-{FLOAT}     { errno = 0;
-              yylval->emplace<NixFloat>(strtod(yytext, 0));
-              if (errno != 0)
-                  throw ParseError(ErrorInfo{
-                      .msg = HintFmt("invalid float '%1%'", yytext),
-                      .pos = state->positions[CUR_POS],
-                  });
+{FLOAT}     {
+              yylval->emplace<NixMaybeFloat>(yytext);
               return FLOAT_LIT;
             }
 

@@ -79,11 +79,10 @@ StringMap EvalState::realiseContext(const NixStringContext & context, StorePathS
         std::visit(
             overloaded{
                 [&](const NixStringContextElem::Built & b) {
-                    drvs.push_back(
-                        DerivedPath::Built{
-                            .drvPath = b.drvPath,
-                            .outputs = OutputsSpec::Names{b.output},
-                        });
+                    drvs.push_back(DerivedPath::Built{
+                        .drvPath = b.drvPath,
+                        .outputs = OutputsSpec::Names{b.output},
+                    });
                     ensureValid(b.drvPath->getBaseStorePath());
                 },
                 [&](const NixStringContextElem::Opaque & o) {
@@ -134,11 +133,10 @@ StringMap EvalState::realiseContext(const NixStringContext & context, StorePathS
             /* Get all the output paths corresponding to the placeholders we had */
             if (experimentalFeatureSettings.isEnabled(Xp::CaDerivations)) {
                 res.insert_or_assign(
-                    DownstreamPlaceholder::fromSingleDerivedPathBuilt(
-                        SingleDerivedPath::Built{
-                            .drvPath = drv.drvPath,
-                            .output = outputName,
-                        })
+                    DownstreamPlaceholder::fromSingleDerivedPathBuilt(SingleDerivedPath::Built{
+                                                                          .drvPath = drv.drvPath,
+                                                                          .output = outputName,
+                                                                      })
                         .render(),
                     buildStore->printStorePath(outputPath));
             }
@@ -316,11 +314,10 @@ static void import(EvalState & state, const PosIdx pos, Value & vPath, Value * v
     }
 }
 
-static RegisterPrimOp primop_scopedImport(
-    PrimOp{
-        .name = "scopedImport", .arity = 2, .fun = [](EvalState & state, const PosIdx pos, Value ** args, Value & v) {
-            import(state, pos, *args[1], args[0], v);
-        }});
+static RegisterPrimOp primop_scopedImport(PrimOp{
+    .name = "scopedImport", .arity = 2, .fun = [](EvalState & state, const PosIdx pos, Value ** args, Value & v) {
+        import(state, pos, *args[1], args[0], v);
+    }});
 
 static RegisterPrimOp primop_import(
     {.name = "import",
@@ -524,6 +521,9 @@ static void prim_typeOf(EvalState & state, const PosIdx pos, Value ** args, Valu
     case nFloat:
         v.mkStringNoCopy("float"_sds);
         break;
+    case nRational:
+        v.mkStringNoCopy("float"_sds);
+        break;
     case nThunk:
         unreachable();
     }
@@ -594,7 +594,7 @@ static RegisterPrimOp primop_isInt({
 static void prim_isFloat(EvalState & state, const PosIdx pos, Value ** args, Value & v)
 {
     state.forceValue(*args[0], pos);
-    v.mkBool(args[0]->type() == nFloat);
+    v.mkBool(args[0]->type() == nFloat || args[0]->type() == nRational);
 }
 
 static RegisterPrimOp primop_isFloat({
@@ -859,12 +859,11 @@ static void prim_genericClosure(EvalState & state, const PosIdx pos, Value ** ar
     v.mkList(list);
 }
 
-static RegisterPrimOp primop_genericClosure(
-    PrimOp{
-        .name = "__genericClosure",
-        .args = {"attrset"},
-        .arity = 1,
-        .doc = R"(
+static RegisterPrimOp primop_genericClosure(PrimOp{
+    .name = "__genericClosure",
+    .args = {"attrset"},
+    .arity = 1,
+    .doc = R"(
       `builtins.genericClosure` iteratively computes the transitive closure over an arbitrary relation defined by a function.
 
       It takes *attrset* with two attributes named `startSet` and `operator`, and returns a list of attribute sets:
@@ -914,8 +913,8 @@ static RegisterPrimOp primop_genericClosure(
       > [ { key = 5; } { key = 16; } { key = 8; } { key = 4; } { key = 2; } { key = 1; } ]
       > ```
       )",
-        .fun = prim_genericClosure,
-    });
+    .fun = prim_genericClosure,
+});
 
 static RegisterPrimOp primop_break(
     {.name = "break",
@@ -926,12 +925,11 @@ static RegisterPrimOp primop_break(
     )",
      .fun = [](EvalState & state, const PosIdx pos, Value ** args, Value & v) {
          if (state.canDebug()) {
-             auto error = Error(
-                 ErrorInfo{
-                     .level = lvlInfo,
-                     .msg = HintFmt("breakpoint reached"),
-                     .pos = state.positions[pos],
-                 });
+             auto error = Error(ErrorInfo{
+                 .level = lvlInfo,
+                 .msg = HintFmt("breakpoint reached"),
+                 .pos = state.positions[pos],
+             });
 
              state.runDebugRepl(&error);
          }
@@ -995,14 +993,13 @@ static void prim_addErrorContext(EvalState & state, const PosIdx pos, Value ** a
     }
 }
 
-static RegisterPrimOp primop_addErrorContext(
-    PrimOp{
-        .name = "__addErrorContext",
-        .arity = 2,
-        // The normal trace item is redundant
-        .addTrace = false,
-        .fun = prim_addErrorContext,
-    });
+static RegisterPrimOp primop_addErrorContext(PrimOp{
+    .name = "__addErrorContext",
+    .arity = 2,
+    // The normal trace item is redundant
+    .addTrace = false,
+    .fun = prim_addErrorContext,
+});
 
 static void prim_ceil(EvalState & state, const PosIdx pos, Value ** args, Value & v)
 {
@@ -1805,12 +1802,11 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
     v.mkAttrs(result);
 }
 
-static RegisterPrimOp primop_derivationStrict(
-    PrimOp{
-        .name = "derivationStrict",
-        .arity = 1,
-        .fun = prim_derivationStrict,
-    });
+static RegisterPrimOp primop_derivationStrict(PrimOp{
+    .name = "derivationStrict",
+    .arity = 1,
+    .fun = prim_derivationStrict,
+});
 
 /* Return a placeholder string for the specified output that will be
    substituted by the corresponding output path at build time. For
@@ -2056,10 +2052,9 @@ static void prim_readFile(EvalState & state, const PosIdx pos, Value ** args, Va
     }
     NixStringContext context;
     for (auto && p : std::move(refs)) {
-        context.insert(
-            NixStringContextElem::Opaque{
-                .path = std::move((StorePath &&) p),
-            });
+        context.insert(NixStringContextElem::Opaque{
+            .path = std::move((StorePath &&) p),
+        });
     }
     v.mkString(s, context, state.mem);
 }
@@ -2115,11 +2110,10 @@ static void prim_findFile(EvalState & state, const PosIdx pos, Value ** args, Va
                 .debugThrow();
         }
 
-        lookupPath.elements.emplace_back(
-            LookupPath::Elem{
-                .prefix = LookupPath::Prefix{.s = std::move(prefix)},
-                .path = LookupPath::Path{.s = std::move(path)},
-            });
+        lookupPath.elements.emplace_back(LookupPath::Elem{
+            .prefix = LookupPath::Prefix{.s = std::move(prefix)},
+            .path = LookupPath::Path{.s = std::move(path)},
+        });
     }
 
     auto path =
@@ -2128,11 +2122,10 @@ static void prim_findFile(EvalState & state, const PosIdx pos, Value ** args, Va
     v.mkPath(state.findFile(lookupPath, path, pos), state.mem);
 }
 
-static RegisterPrimOp primop_findFile(
-    PrimOp{
-        .name = "__findFile",
-        .args = {"search-path", "lookup-path"},
-        .doc = R"(
+static RegisterPrimOp primop_findFile(PrimOp{
+    .name = "__findFile",
+    .args = {"search-path", "lookup-path"},
+    .doc = R"(
       Find *lookup-path* in *search-path*.
 
       [Lookup path](@docroot@/language/constructs/lookup-path.md) expressions are [desugared](https://en.wikipedia.org/wiki/Syntactic_sugar) using this and [`builtins.nixPath`](#builtins-nixPath):
@@ -2260,8 +2253,8 @@ static RegisterPrimOp primop_findFile(
       >
       > makes `<nixpkgs>` refer to a particular branch of the `NixOS/nixpkgs` repository on GitHub.
     )",
-        .fun = prim_findFile,
-    });
+    .fun = prim_findFile,
+});
 
 /* Return the cryptographic hash of a file in base-16. */
 static void prim_hashFile(EvalState & state, const PosIdx pos, Value ** args, Value & v)
@@ -3060,18 +3053,17 @@ static void prim_unsafeGetAttrPos(EvalState & state, const PosIdx pos, Value ** 
         state.mkPos(v, i->pos);
 }
 
-static RegisterPrimOp primop_unsafeGetAttrPos(
-    PrimOp{
-        .name = "__unsafeGetAttrPos",
-        .args = {"s", "set"},
-        .arity = 2,
-        .doc = R"(
+static RegisterPrimOp primop_unsafeGetAttrPos(PrimOp{
+    .name = "__unsafeGetAttrPos",
+    .args = {"s", "set"},
+    .arity = 2,
+    .doc = R"(
       `unsafeGetAttrPos` returns the position of the attribute named *s*
       from *set*. This is used by Nixpkgs to provide location information
       in error messages.
     )",
-        .fun = prim_unsafeGetAttrPos,
-    });
+    .fun = prim_unsafeGetAttrPos,
+});
 
 // access to exact position information (ie, line and column numbers) is deferred
 // due to the cost associated with calculating that information and how rarely
@@ -4195,6 +4187,10 @@ static void prim_add(EvalState & state, const PosIdx pos, Value ** args, Value &
         v.mkFloat(
             state.forceFloat(*args[0], pos, "while evaluating the first argument of the addition")
             + state.forceFloat(*args[1], pos, "while evaluating the second argument of the addition"));
+    else if (args[0]->type() == nRational || args[1]->type() == nRational)
+        v.mkRational(
+            state.forceRational(*args[0], pos, "while evaluating the first argument of the addition")
+            + state.forceRational(*args[1], pos, "while evaluating the second argument of the addition"));
     else {
         auto i1 = state.forceInt(*args[0], pos, "while evaluating the first argument of the addition");
         auto i2 = state.forceInt(*args[1], pos, "while evaluating the second argument of the addition");
@@ -4225,6 +4221,10 @@ static void prim_sub(EvalState & state, const PosIdx pos, Value ** args, Value &
         v.mkFloat(
             state.forceFloat(*args[0], pos, "while evaluating the first argument of the subtraction")
             - state.forceFloat(*args[1], pos, "while evaluating the second argument of the subtraction"));
+    else if (args[0]->type() == nRational || args[1]->type() == nRational)
+        v.mkRational(
+            state.forceRational(*args[0], pos, "while evaluating the first argument of the subtraction")
+            - state.forceRational(*args[1], pos, "while evaluating the second argument of the subtraction"));
     else {
         auto i1 = state.forceInt(*args[0], pos, "while evaluating the first argument of the subtraction");
         auto i2 = state.forceInt(*args[1], pos, "while evaluating the second argument of the subtraction");
@@ -4284,15 +4284,25 @@ static void prim_div(EvalState & state, const PosIdx pos, Value ** args, Value &
     state.forceValue(*args[0], pos);
     state.forceValue(*args[1], pos);
 
-    NixFloat f2 = state.forceFloat(*args[1], pos, "while evaluating the second operand of the division");
-    if (f2 == 0)
-        state.error<EvalError>("division by zero").atPos(pos).debugThrow();
-
     if (args[0]->type() == nFloat || args[1]->type() == nFloat) {
+        NixFloat f2 = state.forceFloat(*args[1], pos, "while evaluating the second operand of the division");
+        if (f2 == 0)
+            state.error<EvalError>("division by zero").atPos(pos).debugThrow();
+
         v.mkFloat(state.forceFloat(*args[0], pos, "while evaluating the first operand of the division") / f2);
+    } else if (args[0]->type() == nRational || args[1]->type() == nRational) {
+        NixRational f2 = state.forceRational(*args[1], pos, "while evaluating the second operand of the division");
+        if (f2 == 0)
+            state.error<EvalError>("division by zero").atPos(pos).debugThrow();
+
+        v.mkRational(state.forceRational(*args[0], pos, "while evaluating the first operand of the division") / f2);
     } else {
         NixInt i1 = state.forceInt(*args[0], pos, "while evaluating the first operand of the division");
         NixInt i2 = state.forceInt(*args[1], pos, "while evaluating the second operand of the division");
+
+        if (i2 == NixInt(0))
+            state.error<EvalError>("division by zero").atPos(pos).debugThrow();
+
         /* Avoid division overflow as it might raise SIGFPE. */
         auto result_ = i1 / i2;
         if (auto result = result_.valueChecked(); result.has_value()) {

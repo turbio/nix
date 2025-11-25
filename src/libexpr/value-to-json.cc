@@ -25,6 +25,12 @@ json printValueAsJSON(
 
     switch (v.type()) {
 
+    case nRational:
+        // TODO(turbio): losing like half the point of rationals here.
+        // is this possible without ditching nlohmann json?
+        out = v.rational()->to_float();
+        break;
+
     case nInt:
         out = v.integer().value;
         break;

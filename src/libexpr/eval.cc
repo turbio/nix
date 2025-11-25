@@ -133,6 +133,8 @@ std::string_view showType(ValueType type, bool withArticle)
 {
 #define WA(a, w) withArticle ? a " " w : w
     switch (type) {
+    case nRational:
+        return WA("a", "float");
     case nInt:
         return WA("an", "integer");
     case nBool:
@@ -796,9 +798,8 @@ void EvalState::runDebugRepl(const Error * error, const Env & env, const Expr & 
         printError("%s\n", error->what());
 
         if (trylevel > 0 && error->info().level != lvlInfo)
-            printError(
-                "This exception occurred in a 'tryEval' call. Use " ANSI_GREEN "--ignore-try" ANSI_NORMAL
-                " to skip these.\n");
+            printError("This exception occurred in a 'tryEval' call. Use " ANSI_GREEN "--ignore-try" ANSI_NORMAL
+                       " to skip these.\n");
     }
 
     auto se = getStaticEnv(expr);
@@ -2059,6 +2060,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
     size_t sSize = 0;
     NixInt n{0};
     NixFloat nf = 0;
+    NixRational nr = NixInt(0);
 
     bool first = !forceString;
     ValueType firstType = nString;
@@ -2094,6 +2096,9 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
                 firstType = nFloat;
                 nf = n.value;
                 nf += vTmp.fpoint();
+            } else if (vTmp.type() == nRational) {
+                firstType = nRational;
+                nf = n.value;
             } else
                 state.error<EvalError>("cannot add %1% to an integer", showType(vTmp))
                     .atPos(i_pos)
@@ -2259,6 +2264,24 @@ NixFloat EvalState::forceFloat(Value & v, const PosIdx pos, std::string_view err
                 .atPos(pos)
                 .debugThrow();
         return v.fpoint();
+    } catch (Error & e) {
+        e.addTrace(positions[pos], errorCtx);
+        throw;
+    }
+}
+
+NixRational EvalState::forceRational(Value & v, const PosIdx pos, std::string_view errorCtx)
+{
+    try {
+        forceValue(v, pos);
+        if (v.type() == nInt)
+            return NixRational(v.integer());
+        else if (v.type() != nRational)
+            error<TypeError>(
+                "expected a float but found %1%: %2%", showType(v), ValuePrinter(*this, v, errorPrintOptions))
+                .atPos(pos)
+                .debugThrow();
+        return *v.rational();
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
@@ -2456,6 +2479,8 @@ BackedStringView EvalState::coerceToString(
             return std::to_string(v.integer().value);
         if (v.type() == nFloat)
             return std::to_string(v.fpoint());
+        if (v.type() == nRational)
+            return v.rational()->to_string();
         if (v.type() == nNull)
             return "";
 
@@ -2644,6 +2669,20 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
         }
     }
 
+    if ((v1.type() == nInt || v1.type() == nRational) && (v2.type() == nInt || v2.type() == nRational)) {
+        if (eqValues(v1, v2, pos, errorCtx)) {
+            return;
+        } else {
+            error<AssertionError>(
+                "%s with value '%s' is not equal to %s with value '%s'",
+                showType(v1),
+                ValuePrinter(*this, v1, errorPrintOptions),
+                showType(v2),
+                ValuePrinter(*this, v2, errorPrintOptions))
+                .debugThrow();
+        }
+    }
+
     if (v1.type() != v2.type()) {
         error<AssertionError>(
             "%s of value '%s' is not equal to %s of value '%s'",
@@ -2655,6 +2694,12 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
     }
 
     switch (v1.type()) {
+    case nRational:
+        if (*v1.rational() != *v2.rational()) {
+            error<AssertionError>("float '%f' is not equal to float '%f'", v1.fpoint(), v2.fpoint()).debugThrow();
+        }
+        return;
+
     case nInt:
         if (v1.integer() != v2.integer()) {
             error<AssertionError>("integer '%d' is not equal to integer '%d'", v1.integer(), v2.integer()).debugThrow();
@@ -2843,11 +2888,19 @@ bool EvalState::eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_v
     if (v1.type() == nFloat && v2.type() == nInt)
         return v1.fpoint() == v2.integer().value;
 
+    if (v1.type() == nInt && v2.type() == nRational)
+        return v1.integer().value == *v2.rational();
+    if (v1.type() == nRational && v2.type() == nInt)
+        return *v1.rational() == v2.integer().value;
+
     // All other types are not compatible with each other.
     if (v1.type() != v2.type())
         return false;
 
     switch (v1.type()) {
+    case nRational:
+        return *v1.rational() == *v2.rational();
+
     case nInt:
         return v1.integer() == v2.integer();
 

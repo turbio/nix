@@ -238,6 +238,15 @@ private:
             output << ANSI_NORMAL;
     }
 
+    void printRational(Value & v)
+    {
+        if (options.ansiColors)
+            output << ANSI_CYAN;
+        output << v.rational()->to_string();
+        if (options.ansiColors)
+            output << ANSI_NORMAL;
+    }
+
     void printBool(Value & v)
     {
         if (options.ansiColors)
@@ -586,6 +595,10 @@ private:
 
             case nExternal:
                 printExternal(v);
+                break;
+
+            case nRational:
+                printRational(v);
                 break;
 
             default:
