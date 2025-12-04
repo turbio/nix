@@ -14,6 +14,7 @@
 %x INPATH
 %x INPATH_SLASH
 %x PATH_START
+%s NO_LINT
 
 %top {
 #include "parser-tab.hh" // YYSTYPE
@@ -27,6 +28,7 @@
 
 #include "nix/expr/nixexpr.hh"
 #include "lexer-helpers.hh"
+#include "nix/util/logging.hh"
 
 namespace nix {
   struct LexerState;
@@ -110,6 +112,8 @@ HPATH_START \~\/
 SPATH       \<{PATH_CHAR}+(\/{PATH_CHAR}+)*\>
 URI         [a-zA-Z][a-zA-Z0-9\+\-\.]*\:[a-zA-Z0-9\%\/\?\:\@\&\=\+\$\,\-\_\.\!\~\*\']+
 
+LZ_FLOAT    0[0-9]+\.[0-9]+([Ee][+-]?[0-9]+)?
+HEX_INT     0[xX][0-9a-fA-F]+
 
 %%
 
@@ -143,6 +147,29 @@ or          { return OR_KW; }
             }
 
 {ID}        { yylval->emplace<StringToken>(yytext, (size_t) yyleng); return ID; }
+
+<DEFAULT,INITIAL>{HEX_INT} {
+              logWarning({
+                  .msg = HintFmt("hex literals are not supported, this will parse as an integer followed by an identifier. This behavior may change in the future."),
+                  .pos = state->positions[CUR_POS]
+              });
+
+              PUSH_STATE(NO_LINT);
+              yyless(0);
+              yylloc->unstash();
+            }
+
+<DEFAULT,INITIAL>{LZ_FLOAT} {
+              logWarning({
+                  .msg = HintFmt("ambiguous syntax '%1%' will be parsed as two tokens. This behavior may change in the future", yytext),
+                  .pos = state->positions[CUR_POS]
+              });
+
+              PUSH_STATE(NO_LINT);
+              yyless(0);
+              yylloc->unstash();
+            }
+
 {INT}       { errno = 0;
               std::optional<int64_t> numMay = string2Int<int64_t>(yytext);
               if (numMay.has_value()) {
@@ -153,8 +180,13 @@ or          { return OR_KW; }
                       .pos = state->positions[CUR_POS],
                   });
               }
+
+              if (YYSTATE == NO_LINT)
+                  POP_STATE();
+
               return INT_LIT;
             }
+
 {FLOAT}     { errno = 0;
               yylval->emplace<NixFloat>(strtod(yytext, 0));
               if (errno != 0)
@@ -162,6 +194,10 @@ or          { return OR_KW; }
                       .msg = HintFmt("invalid float '%1%'", yytext),
                       .pos = state->positions[CUR_POS],
                   });
+
+              if (YYSTATE == NO_LINT)
+                  POP_STATE();
+
               return FLOAT_LIT;
             }
 

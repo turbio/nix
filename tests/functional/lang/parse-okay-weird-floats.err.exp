@@ -1,0 +1,120 @@
+warning: ambiguous syntax '00.0' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:2:5:
+              1| [
+              2|   [ 00.0 ]
+               |     ^
+              3|   [ 000.0 ]
+warning: ambiguous syntax '000.0' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:3:5:
+              2|   [ 00.0 ]
+              3|   [ 000.0 ]
+               |     ^
+              4|   [ 0000.0 ]
+warning: ambiguous syntax '0000.0' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:4:5:
+              3|   [ 000.0 ]
+              4|   [ 0000.0 ]
+               |     ^
+              5|   [ 00000.0 ]
+warning: ambiguous syntax '00000.0' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:5:5:
+              4|   [ 0000.0 ]
+              5|   [ 00000.0 ]
+               |     ^
+              6|   [ 000000.0 ]
+warning: ambiguous syntax '000000.0' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:6:5:
+              5|   [ 00000.0 ]
+              6|   [ 000000.0 ]
+               |     ^
+              7|
+warning: ambiguous syntax '00.1' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:8:5:
+              7|
+              8|   [ 00.1 ]
+               |     ^
+              9|   [ 00.5 ]
+warning: ambiguous syntax '00.5' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:9:5:
+              8|   [ 00.1 ]
+              9|   [ 00.5 ]
+               |     ^
+             10|   [ 00.99 ]
+warning: ambiguous syntax '00.99' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:10:5:
+              9|   [ 00.5 ]
+             10|   [ 00.99 ]
+               |     ^
+             11|
+warning: ambiguous syntax '01.0' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:12:5:
+             11|
+             12|   [ 01.0 ]
+               |     ^
+             13|   [ 010.0 ]
+warning: ambiguous syntax '010.0' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:13:5:
+             12|   [ 01.0 ]
+             13|   [ 010.0 ]
+               |     ^
+             14|   [ 0123.456 ]
+warning: ambiguous syntax '0123.456' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:14:5:
+             13|   [ 010.0 ]
+             14|   [ 0123.456 ]
+               |     ^
+             15|   [ 000123.01 ]
+warning: ambiguous syntax '000123.01' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:15:5:
+             14|   [ 0123.456 ]
+             15|   [ 000123.01 ]
+               |     ^
+             16|
+warning: ambiguous syntax '000.123' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:20:5:
+             19|   [ 1.2.3.4 ]
+             20|   [ 000.123.01 ]
+               |     ^
+             21|
+warning: ambiguous syntax '00.5e10' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:22:5:
+             21|
+             22|   [ 00.5e10 ]
+               |     ^
+             23|   [ 01.2e-3 ]
+warning: ambiguous syntax '01.2e-3' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:23:5:
+             22|   [ 00.5e10 ]
+             23|   [ 01.2e-3 ]
+               |     ^
+             24|   [ 000.1E+5 ]
+warning: ambiguous syntax '000.1E+5' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:24:5:
+             23|   [ 01.2e-3 ]
+             24|   [ 000.1E+5 ]
+               |     ^
+             25|
+warning: ambiguous syntax '00.0' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:26:5:
+             25|
+             26|   [ 00.0 0.0.0 01.5 ]
+               |     ^
+             27|   [ 000.0 1.2.3 00.5e10 ]
+warning: ambiguous syntax '01.5' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:26:16:
+             25|
+             26|   [ 00.0 0.0.0 01.5 ]
+               |                ^
+             27|   [ 000.0 1.2.3 00.5e10 ]
+warning: ambiguous syntax '000.0' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:27:5:
+             26|   [ 00.0 0.0.0 01.5 ]
+             27|   [ 000.0 1.2.3 00.5e10 ]
+               |     ^
+             28| ]
+warning: ambiguous syntax '00.5e10' will be parsed as two tokens. This behavior may change in the future
+         at «stdin»:27:17:
+             26|   [ 00.0 0.0.0 01.5 ]
+             27|   [ 000.0 1.2.3 00.5e10 ]
+               |                 ^
+             28| ]

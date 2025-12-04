@@ -1,0 +1,12 @@
+warning: hex literals are not supported, this will parse as an integer followed by an identifier. This behavior may change in the future.
+         at «stdin»:8:5:
+              7| [
+              8|   [ 0xff ]
+               |     ^
+              9|   [ 00xff ]
+warning: hex literals are not supported, this will parse as an integer followed by an identifier. This behavior may change in the future.
+         at «stdin»:10:5:
+              9|   [ 00xff ]
+             10|   [ 0X123abcdef ]
+               |     ^
+             11|   [ 0x ]

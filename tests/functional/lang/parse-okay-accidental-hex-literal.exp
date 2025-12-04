@@ -1,0 +1,1 @@
+(let X123abcdef = "X123abcdef"; x = "x"; xff = "xff"; xnothex = "xnothex"; in [ ([ (0) (xff) ]) ([ (0) (xff) ]) ([ (0) (X123abcdef) ]) ([ (0) (x) ]) ([ (0) (xnothex) ]) ])
