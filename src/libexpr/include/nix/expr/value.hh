@@ -237,6 +237,26 @@ struct NixRational
         return v.convert_to<double>();
     }
 
+    cpp_int to_int_floor() const
+    {
+        cpp_int num = numerator(v);
+        cpp_int den = denominator(v);
+        cpp_int q = num / den;
+        if (num % den != 0 && num < 0)
+            q -= 1;
+        return q;
+    }
+
+    cpp_int to_int_ceil() const
+    {
+        cpp_int num = numerator(v);
+        cpp_int den = denominator(v);
+        cpp_int q = num / den;
+        if (num % den != 0 && num > 0)
+            q += 1;
+        return q;
+    }
+
     bool operator==(const NixRational & other) const noexcept
     {
         return v == other.v;

@@ -1085,6 +1085,21 @@ static RegisterPrimOp primop_addErrorContext(
 
 static void prim_ceil(EvalState & state, CallSite callSite, Value * const * args, Value & v)
 {
+    state.forceValue(*args[0], args[0]->determinePos(noPos));
+    if (args[0]->type() == nRational) {
+        auto rat = state.forceRational(
+            *args[0], args[0]->determinePos(noPos), "while evaluating the first argument passed to builtins.ceil");
+        cpp_int result = rat.to_int_ceil();
+        cpp_int int_min = std::numeric_limits<NixInt::Inner>::min();
+        cpp_int int_max = std::numeric_limits<NixInt::Inner>::max();
+        if (result < int_min || result > int_max) {
+            state.error<EvalError>("ceil result %1% is not in the range of NixInt", result.str())
+                .atPos(noPos)
+                .debugThrow();
+        }
+        v.mkInt(result.convert_to<NixInt::Inner>());
+        return;
+    }
     auto value = state.forceFloat(
         *args[0], args[0]->determinePos(noPos), "while evaluating the first argument passed to builtins.ceil");
     auto ceilValue = ceil(value);
@@ -1140,6 +1155,21 @@ static RegisterPrimOp primop_ceil({
 
 static void prim_floor(EvalState & state, CallSite callSite, Value * const * args, Value & v)
 {
+    state.forceValue(*args[0], args[0]->determinePos(noPos));
+    if (args[0]->type() == nRational) {
+        auto rat = state.forceRational(
+            *args[0], args[0]->determinePos(noPos), "while evaluating the first argument passed to builtins.floor");
+        cpp_int result = rat.to_int_floor();
+        cpp_int int_min = std::numeric_limits<NixInt::Inner>::min();
+        cpp_int int_max = std::numeric_limits<NixInt::Inner>::max();
+        if (result < int_min || result > int_max) {
+            state.error<EvalError>("floor result %1% is not in the range of NixInt", result.str())
+                .atPos(noPos)
+                .debugThrow();
+        }
+        v.mkInt(result.convert_to<NixInt::Inner>());
+        return;
+    }
     auto value = state.forceFloat(
         *args[0], args[0]->determinePos(noPos), "while evaluating the first argument passed to builtins.floor");
     auto floorValue = floor(value);
@@ -4509,6 +4539,10 @@ static void prim_mul(EvalState & state, CallSite callSite, Value * const * args,
         v.mkFloat(
             state.forceFloat(*args[0], noPos, "while evaluating the first of the multiplication")
             * state.forceFloat(*args[1], noPos, "while evaluating the second argument of the multiplication"));
+    else if (args[0]->type() == nRational || args[1]->type() == nRational)
+        v.mkRational(
+            state.forceRational(*args[0], noPos, "while evaluating the first argument of the multiplication")
+            * state.forceRational(*args[1], noPos, "while evaluating the second argument of the multiplication"));
     else {
         auto i1 = state.forceInt(*args[0], noPos, "while evaluating the first argument of the multiplication");
         auto i2 = state.forceInt(*args[1], noPos, "while evaluating the second argument of the multiplication");
