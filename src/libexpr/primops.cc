@@ -4571,25 +4571,24 @@ static void prim_div(EvalState & state, CallSite callSite, Value * const * args,
     state.forceValue(*args[0], noPos);
     state.forceValue(*args[1], noPos);
 
-    if (args[0]->type() == nFloat || args[1]->type() == nFloat) {
-        NixFloat f2 = state.forceFloat(*args[1], noPos, "while evaluating the second operand of the division");
-        if (f2 == 0)
-            state.error<EvalError>("division by zero").atPos(noPos).debugThrow();
-
-        v.mkFloat(state.forceFloat(*args[0], noPos, "while evaluating the first operand of the division") / f2);
-    } else if (args[0]->type() == nRational || args[1]->type() == nRational) {
+    if (args[0]->type() == nRational || args[1]->type() == nRational) {
         NixRational f2 = state.forceRational(*args[1], noPos, "while evaluating the second operand of the division");
         if (f2 == 0)
             state.error<EvalError>("division by zero").atPos(noPos).debugThrow();
 
         v.mkRational(state.forceRational(*args[0], noPos, "while evaluating the first operand of the division") / f2);
+        return;
+    }
+
+    NixFloat f2 = state.forceFloat(*args[1], noPos, "while evaluating the second operand of the division");
+    if (f2 == 0)
+        state.error<EvalError>("division by zero").atPos(noPos).debugThrow();
+
+    if (args[0]->type() == nFloat || args[1]->type() == nFloat) {
+        v.mkFloat(state.forceFloat(*args[0], noPos, "while evaluating the first operand of the division") / f2);
     } else {
         NixInt i1 = state.forceInt(*args[0], noPos, "while evaluating the first operand of the division");
         NixInt i2 = state.forceInt(*args[1], noPos, "while evaluating the second operand of the division");
-
-        if (i2 == NixInt(0))
-            state.error<EvalError>("division by zero").atPos(noPos).debugThrow();
-
         /* Avoid division overflow as it might raise SIGFPE. */
         auto result_ = i1 / i2;
         if (auto result = result_.valueChecked(); result.has_value()) {
