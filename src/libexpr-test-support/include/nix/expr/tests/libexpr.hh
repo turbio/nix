@@ -120,10 +120,11 @@ MATCHER_P(IsIntEq, v, fmt("The string is equal to \"%1%\"", v))
 
 MATCHER_P(IsFloatEq, v, fmt("The float is equal to \"%1%\"", v))
 {
-    if (arg.type() != nFloat) {
-        return false;
-    }
-    return arg.fpoint() == v;
+    if (arg.type() == nFloat)
+        return arg.fpoint() == v;
+    if (arg.type() == nRational)
+        return arg.rational()->to_float() == v;
+    return false;
 }
 
 MATCHER(IsTrue, "")
