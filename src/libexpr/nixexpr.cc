@@ -35,8 +35,6 @@ void ExprInt::show(const SymbolTable & symbols, std::ostream & str) const
 
 void ExprFloat::show(const SymbolTable & symbols, std::ostream & str) const
 {
-    // TODO(turbio):
-    // str << v.fpoint();
     str << v.rational()->to_string();
 }
 

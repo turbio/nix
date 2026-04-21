@@ -59,6 +59,7 @@ sources = files(
   'nix_api_value.cc',
   'nix_api_value_internal.cc',
   'primops.cc',
+  'rational-string.cc',
   'search-path.cc',
   'trivial.cc',
   'value/context.cc',

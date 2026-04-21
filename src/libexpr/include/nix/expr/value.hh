@@ -181,6 +181,14 @@ struct NixRational
 
         std::string digits = int_part + frac_part;
 
+        // Strip leading zeros so cpp_int doesn't interpret the string as octal
+        // (e.g. "025" -> 21). Keep at least one digit for all-zero strings.
+        std::size_t first_nz = digits.find_first_not_of('0');
+        if (first_nz == std::string::npos)
+            digits = "0";
+        else if (first_nz > 0)
+            digits.erase(0, first_nz);
+
         cpp_int numer = cpp_int(digits);
         if (negative) {
             numer = -numer;
@@ -197,12 +205,157 @@ struct NixRational
         v = cpp_rational(numer, denom);
     }
 
-    // open questions:
-    // - how to format repeating decimals?
-    std::string to_string()
+    /**
+     * Format this rational the same way `std::ostream << NixFloat` formats a
+     * double: printf "%g" with precision 6 — 6 significant digits, trailing
+     * zeros stripped, switches to scientific notation when the exponent falls
+     * outside roughly [1e-4, 1e6).
+     *
+     *   0.123    -> "0.123"
+     *   1.0      -> "1"
+     *   -2.5     -> "-2.5"
+     *   1234567  -> "1.23457e+06"
+     *   1e-5     -> "1e-05"
+     *
+     * Used by every NixFloat display surface except coerceToString: the REPL
+     * / pretty printer (print.cc), the ambiguous printer
+     * (print-ambiguous.cc), the XML serializer (value-to-xml.cc), and
+     * `ExprFloat::show` (nixexpr.cc). All of those paths run
+     * `ostream << double` on NixFloat today, so we mirror that format
+     * precisely — enabling the rationals experiment doesn't change any
+     * user-visible display for values representable as doubles, and the
+     * output is always bounded to the same small character count the float
+     * path produces (roughly ≤ 13 chars for the mantissa + exponent).
+     *
+     * Computed directly from the rational (no double round-trip): the 6
+     * displayed digits are the exact decimal expansion of the rational,
+     * rounded half-away-from-zero on the 7th. Non-terminating decimals
+     * (e.g. 1/3) terminate because we stop after 6 significant digits.
+     *
+     * See `to_string_padded()` for the %f-style formatter used by
+     * coerceToString / builtins.toString.
+     */
+    std::string to_string() const
     {
         if (v == 0)
-            return "0.0";
+            return "0";
+
+        cpp_int num = numerator(v);
+        cpp_int den = denominator(v);
+        bool negative = num < 0;
+        if (negative)
+            num = -num;
+
+        // Scale num/den so that the integer quotient falls in [10^5, 10^6) —
+        // exactly six significant digits. `k` tracks the net power-of-ten
+        // shift, so the scaled quotient represents value * 10^k.
+        int k = 0;
+        while (num / den < cpp_int(100000)) {
+            num *= 10;
+            ++k;
+        }
+        while (num / den >= cpp_int(1000000)) {
+            den *= 10;
+            --k;
+        }
+
+        cpp_int N = num / den;
+        cpp_int rem = num - N * den;
+        // Round half-away-from-zero at the 7th significant digit.
+        if (2 * rem >= den)
+            N += 1;
+        if (N >= cpp_int(1000000)) {
+            // Rounding carried past 10^6; renormalize to stay 6 digits.
+            N /= 10;
+            --k;
+        }
+
+        // Decimal exponent of the most significant digit of |value|.
+        int X = 5 - k;
+        std::string sig = N.str();
+
+        std::string out;
+        if (negative)
+            out += '-';
+
+        if (X >= -4 && X < 6) {
+            // %f style.
+            if (X >= 0) {
+                out += sig.substr(0, X + 1);
+                std::string frac = sig.substr(X + 1);
+                while (!frac.empty() && frac.back() == '0')
+                    frac.pop_back();
+                if (!frac.empty()) {
+                    out += '.';
+                    out += frac;
+                }
+            } else {
+                out += "0.";
+                out.append(-X - 1, '0');
+                std::string s = sig;
+                while (!s.empty() && s.back() == '0')
+                    s.pop_back();
+                out += s;
+            }
+        } else {
+            // %e style: one leading digit, decimal, stripped mantissa, then
+            // 'e', sign, and a zero-padded 2+ digit exponent.
+            out += sig[0];
+            std::string frac = sig.substr(1);
+            while (!frac.empty() && frac.back() == '0')
+                frac.pop_back();
+            if (!frac.empty()) {
+                out += '.';
+                out += frac;
+            }
+            out += 'e';
+            int ax = X;
+            if (X < 0) {
+                out += '-';
+                ax = -X;
+            } else {
+                out += '+';
+            }
+            std::string es = std::to_string(ax);
+            if (es.size() < 2)
+                es = "0" + es;
+            out += es;
+        }
+
+        return out;
+    }
+
+    /**
+     * Fixed 6 digits after the decimal point, trailing zeros kept, with the
+     * final digit rounded half-away-from-zero from the 7th. Matches the
+     * output of `std::to_string(NixFloat)` on a double (which is printf "%f"
+     * at default precision):
+     *
+     *   0.123   -> "0.123000"
+     *   1.0     -> "1.000000"
+     *   1/3     -> "0.333333"
+     *   2/3     -> "0.666667"
+     *
+     * Used only by `coerceToString` (src/libexpr/eval.cc), which backs
+     * `builtins.toString` and string interpolation (`"${x}"`). The legacy
+     * NixFloat path there runs `std::to_string(v.fpoint())`, so we mirror
+     * its %f format exactly — otherwise scripts that parse toString output
+     * would break when the rationals experiment is toggled.
+     *
+     * Computed directly from the rational (no double round-trip), so the
+     * 6 displayed digits are the exact decimal expansion of the rational,
+     * rounded on the 7th — not an IEEE-754 approximation of it.
+     *
+     * Two formatters exist because the legacy NixFloat code is itself
+     * internally inconsistent: coerceToString uses printf %f (6 fixed
+     * decimals, trailing zeros kept) while every other float surface uses
+     * ostream default (%g, trailing zeros stripped). We mirror the split
+     * rather than unify it, so enabling rationals doesn't silently change
+     * any user-visible output.
+     */
+    std::string to_string_padded() const
+    {
+        constexpr int fracDigits = 6;
 
         cpp_int num = numerator(v);
         cpp_int den = denominator(v);
@@ -211,24 +364,37 @@ struct NixRational
         if (negative)
             num = -num;
 
-        std::string out;
-
-        if (negative)
-            out += '-';
-
         cpp_int int_part = num / den;
-        out += int_part.str();
-        out += '.';
-
         cpp_int rem = num % den;
 
-        do {
+        // Compute fracDigits + 1 fractional digits; the extra digit drives
+        // half-away-from-zero rounding of the last kept digit.
+        std::string digits(fracDigits + 1, '0');
+        for (int i = 0; i < fracDigits + 1; ++i) {
             rem *= 10;
             cpp_int digit = rem / den;
-            out += static_cast<char>('0' + digit.convert_to<int>());
+            digits[i] = static_cast<char>('0' + digit.convert_to<int>());
             rem = rem % den;
-        } while (rem != 0);
+        }
 
+        if (digits[fracDigits] >= '5') {
+            int i = fracDigits - 1;
+            while (i >= 0 && digits[i] == '9') {
+                digits[i] = '0';
+                --i;
+            }
+            if (i >= 0)
+                digits[i] += 1;
+            else
+                int_part += 1;
+        }
+
+        std::string out;
+        if (negative)
+            out += '-';
+        out += int_part.str();
+        out += '.';
+        out.append(digits, 0, fracDigits);
         return out;
     }
 

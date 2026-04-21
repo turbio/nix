@@ -847,8 +847,9 @@ void EvalState::runDebugRepl(const Error * error, const Env & env, const Expr & 
         printError("%s\n", error->what());
 
         if (trylevel > 0 && error->info().level != lvlInfo)
-            printError("This exception occurred in a 'tryEval' call. Use " ANSI_GREEN "--ignore-try" ANSI_NORMAL
-                       " to skip these.\n");
+            printError(
+                "This exception occurred in a 'tryEval' call. Use " ANSI_GREEN "--ignore-try" ANSI_NORMAL
+                " to skip these.\n");
     }
 
     auto se = getStaticEnv(expr);
@@ -2178,8 +2179,9 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
                 nf = n.value;
                 nf += vTmp.fpoint();
             } else if (vTmp.type() == nRational) {
+                // Upgrade the type from int to rational.
                 firstType = nRational;
-                nf = n.value;
+                nr = NixRational(n) + *vTmp.rational();
             } else
                 state.error<EvalError>("cannot add %1% to an integer", showType(vTmp))
                     .atPos(i_pos)
@@ -2190,6 +2192,16 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
                 nf += vTmp.integer().value;
             } else if (vTmp.type() == nFloat) {
                 nf += vTmp.fpoint();
+            } else
+                state.error<EvalError>("cannot add %1% to a float", showType(vTmp))
+                    .atPos(i_pos)
+                    .withFrame(env, *this)
+                    .debugThrow();
+        } else if (firstType == nRational) {
+            if (vTmp.type() == nInt) {
+                nr = nr + NixRational(vTmp.integer());
+            } else if (vTmp.type() == nRational) {
+                nr = nr + *vTmp.rational();
             } else
                 state.error<EvalError>("cannot add %1% to a float", showType(vTmp))
                     .atPos(i_pos)
@@ -2214,6 +2226,8 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
         v.mkInt(n);
     } else if (firstType == nFloat) {
         v.mkFloat(nf);
+    } else if (firstType == nRational) {
+        v.mkRational(nr);
     } else if (firstType == nPath) {
         if (!context.empty())
             state.error<EvalError>("a string that refers to a store path cannot be appended to a path")
@@ -2622,7 +2636,7 @@ BackedStringView EvalState::coerceToString(
         if (v.type() == nFloat)
             return std::to_string(v.fpoint());
         if (v.type() == nRational)
-            return v.rational()->to_string();
+            return v.rational()->to_string_padded();
         if (v.type() == nNull)
             return "";
 

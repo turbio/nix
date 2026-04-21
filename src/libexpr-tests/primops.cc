@@ -31,9 +31,12 @@ TEST_F(PrimOpTest, ceil)
     ASSERT_THAT(intMin, IsIntEq(std::numeric_limits<NixInt::Inner>::min()));
     ASSERT_THROW(eval("builtins.ceil 1.0e200"), EvalError);
     ASSERT_THROW(eval("builtins.ceil -1.0e200"), EvalError);
-    ASSERT_THROW(eval("builtins.ceil (1.0e200 * 1.0e200)"), EvalError);                     // inf
-    ASSERT_THROW(eval("builtins.ceil (-1.0e200 * 1.0e200)"), EvalError);                    // -inf
-    ASSERT_THROW(eval("builtins.ceil (1.0e200 * 1.0e200 - 1.0e200 * 1.0e200)"), EvalError); // nan
+    ASSERT_THROW(eval("builtins.ceil (1.0e200 * 1.0e200)"), EvalError);  // inf
+    ASSERT_THROW(eval("builtins.ceil (-1.0e200 * 1.0e200)"), EvalError); // -inf
+    // Under floats this expression was NaN (Inf - Inf) and ceil(NaN) threw.
+    // Under rationals the arithmetic is exact, so the expression is exactly 0
+    // and ceil returns 0. Pin the new behavior.
+    ASSERT_THAT(eval("builtins.ceil (1.0e200 * 1.0e200 - 1.0e200 * 1.0e200)"), IsIntEq(0));
     // bugs in previous Nix versions
     ASSERT_THROW(eval("builtins.ceil (4611686018427387904 + 4611686018427387903)"), EvalError);
     ASSERT_THROW(eval("builtins.ceil (-4611686018427387904 - 4611686018427387903)"), EvalError);
@@ -47,9 +50,12 @@ TEST_F(PrimOpTest, floor)
     ASSERT_THAT(intMin, IsIntEq(std::numeric_limits<NixInt::Inner>::min()));
     ASSERT_THROW(eval("builtins.ceil 1.0e200"), EvalError);
     ASSERT_THROW(eval("builtins.ceil -1.0e200"), EvalError);
-    ASSERT_THROW(eval("builtins.ceil (1.0e200 * 1.0e200)"), EvalError);                     // inf
-    ASSERT_THROW(eval("builtins.ceil (-1.0e200 * 1.0e200)"), EvalError);                    // -inf
-    ASSERT_THROW(eval("builtins.ceil (1.0e200 * 1.0e200 - 1.0e200 * 1.0e200)"), EvalError); // nan
+    ASSERT_THROW(eval("builtins.ceil (1.0e200 * 1.0e200)"), EvalError);  // inf
+    ASSERT_THROW(eval("builtins.ceil (-1.0e200 * 1.0e200)"), EvalError); // -inf
+    // Under floats this expression was NaN (Inf - Inf) and floor(NaN) threw.
+    // Under rationals the arithmetic is exact, so the expression is exactly 0
+    // and floor returns 0. Pin the new behavior.
+    ASSERT_THAT(eval("builtins.floor (1.0e200 * 1.0e200 - 1.0e200 * 1.0e200)"), IsIntEq(0));
     // bugs in previous Nix versions
     ASSERT_THROW(eval("builtins.ceil (4611686018427387904 + 4611686018427387903)"), EvalError);
     ASSERT_THROW(eval("builtins.ceil (-4611686018427387904 - 4611686018427387903)"), EvalError);
@@ -562,6 +568,37 @@ TEST_F(PrimOpTest, divFloat)
 TEST_F(PrimOpTest, divFloatZero)
 {
     ASSERT_THROW(eval("builtins.div 5.0 0.0"), EvalError);
+}
+
+// Under floats, `1.0e200 * 1.0e200 - 1.0e200 * 1.0e200` produces NaN
+// (Inf - Inf), and NaN != NaN in IEEE-754. Under rationals, the expression is
+// exactly 0, so the value equals itself — a behavior change we want to pin.
+TEST_F(PrimOpTest, rationalFormerNanSelfEquals)
+{
+    auto v = eval("let x = 1.0e200 * 1.0e200 - 1.0e200 * 1.0e200; in x == x");
+    ASSERT_THAT(v, IsTrue());
+}
+
+TEST_F(PrimOpTest, rationalFormerNanEqualsZero)
+{
+    auto v = eval("(1.0e200 * 1.0e200 - 1.0e200 * 1.0e200) == 0");
+    ASSERT_THAT(v, IsTrue());
+}
+
+// A rational outside the double range gets converted to +/-Inf by to_float()
+// on the JSON serialization path. nlohmann::json cannot represent Inf/NaN in
+// JSON, so it encodes them as null by default. This pins the current behavior
+// so a future change to the JSON path is noticed.
+TEST_F(PrimOpTest, toJSONRationalBeyondDoubleRange)
+{
+    auto v = eval("builtins.toJSON (1.0e200 * 1.0e200)");
+    ASSERT_THAT(v, IsStringEq("null"));
+}
+
+TEST_F(PrimOpTest, toJSONRationalNegativeBeyondDoubleRange)
+{
+    auto v = eval("builtins.toJSON (0.0 - 1.0e200 * 1.0e200)");
+    ASSERT_THAT(v, IsStringEq("null"));
 }
 
 TEST_F(PrimOpTest, bitOr)

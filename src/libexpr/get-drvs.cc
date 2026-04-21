@@ -228,7 +228,8 @@ bool PackageInfo::checkMeta(Value & v)
                 return false;
         return true;
     } else
-        return v.type() == nInt || v.type() == nBool || v.type() == nString || v.type() == nFloat;
+        return v.type() == nInt || v.type() == nBool || v.type() == nString || v.type() == nFloat
+               || v.type() == nRational;
 }
 
 Value * PackageInfo::queryMeta(const std::string & name)
@@ -272,6 +273,8 @@ NixFloat PackageInfo::queryMetaFloat(const std::string & name, NixFloat def)
         return def;
     if (v->type() == nFloat)
         return v->fpoint();
+    if (v->type() == nRational)
+        return v->rational()->to_float();
     if (v->type() == nString) {
         /* Backwards compatibility with before we had support for
            float meta fields. */

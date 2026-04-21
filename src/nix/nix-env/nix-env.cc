@@ -1242,6 +1242,10 @@ static void opQuery(Globals & globals, Strings opFlags, Strings opArgs)
                                 attrs2["type"] = "float";
                                 attrs2["value"] = fmt("%1%", v->fpoint());
                                 xml.writeEmptyElement("meta", attrs2);
+                            } else if (v->type() == nRational) {
+                                attrs2["type"] = "float";
+                                attrs2["value"] = v->rational()->to_string();
+                                xml.writeEmptyElement("meta", attrs2);
                             } else if (v->type() == nBool) {
                                 attrs2["type"] = "bool";
                                 attrs2["value"] = v->boolean() ? "true" : "false";
