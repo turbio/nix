@@ -294,8 +294,14 @@ std::optional<Descriptor> UnixDerivationBuilderImpl::startBuild()
            contents of the new outputs to replace the dummy strings
            with the actual hashes. */
         auto scratchPath = !status.known ? makeFallbackPath(outputName)
-                           : !needsHashRewrite()
-                               /* Can always use original path in sandbox */
+                           : !needsHashRewrite() && !inputPaths.count(status.known->path)
+                               /* In the sandbox the original path is free to use, unless it
+                                  is also an input: with content addressing an output can be
+                                  identical to one of the derivation's own inputs (e.g. a
+                                  package rebuilt with the final stdenv, which references the
+                                  bootstrap build of that same package). It is then
+                                  bind-mounted read-only into the sandbox, so we must build
+                                  elsewhere and rewrite, as in the non-sandbox case. */
                                ? status.known->path
                                : !status.known->isPresent()
                                      /* If path doesn't yet exist can just use it */
@@ -326,8 +332,11 @@ std::optional<Descriptor> UnixDerivationBuilderImpl::startBuild()
         /* Ensure scratch path is ours to use. */
         deletePath(store->printStorePath(scratchPath));
 
-        /* Rewrite and unrewrite paths */
-        {
+        /* Rewrite and unrewrite paths. Floating content-addressed outputs are
+           referred to in the environment by placeholder, never by their final
+           path, so there is nothing to rewrite for them; rewriting would only
+           corrupt a genuine input that happens to share the path. */
+        if (!std::holds_alternative<DerivationOutput::CAFloating>(get(drv.outputs, outputName)->raw)) {
             std::string h1{fixedFinalPath.hashPart()};
             std::string h2{scratchPath.hashPart()};
             inputRewrites[h1] = h2;
