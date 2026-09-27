@@ -139,16 +139,25 @@ struct NixRational
     }
 
     // nix historically used strtod(3) to parse floats from tokens.
-    // Only a subset must be implemented as the lexer defines floats as:
+    // The lexer defines floats as:
     // (([1-9][0-9]*\.[0-9]*)|(0?\.[0-9]+))([Ee][+-]?[0-9]+)?
+    // Importers such as JSON and TOML can also provide exponent-only decimal
+    // floats (`1e6`) and TOML digit separators (`1_000.0`).
     NixRational(const std::string & s)
     {
+        std::string normalized;
+        normalized.reserve(s.size() + 2);
+        for (char c : s) {
+            if (c != '_')
+                normalized += c;
+        }
+
         std::size_t pos = 0;
-        const std::size_t n = s.size();
+        const std::size_t n = normalized.size();
 
         bool negative = false;
-        if (s[pos] == '+' || s[pos] == '-') {
-            negative = (s[pos] == '-');
+        if (normalized[pos] == '+' || normalized[pos] == '-') {
+            negative = (normalized[pos] == '-');
             ++pos;
         }
 
@@ -156,12 +165,12 @@ struct NixRational
             throw std::invalid_argument("sign only, no digits");
         }
 
-        std::size_t e_pos = s.find_first_of("eE", pos);
-        std::string mantissa = s.substr(pos, e_pos == std::string::npos ? n - pos : e_pos - pos);
+        std::size_t e_pos = normalized.find_first_of("eE", pos);
+        std::string mantissa = normalized.substr(pos, e_pos == std::string::npos ? n - pos : e_pos - pos);
 
         cpp_int exp10 = 0;
         if (e_pos != std::string::npos) {
-            std::string exp_str = s.substr(e_pos + 1);
+            std::string exp_str = normalized.substr(e_pos + 1);
             if (exp_str.empty()) {
                 throw std::invalid_argument("missing exponent digits");
             }
@@ -170,7 +179,8 @@ struct NixRational
 
         std::size_t dot_pos = mantissa.find('.');
         if (dot_pos == std::string::npos) {
-            throw std::invalid_argument("expected decimal point in mantissa");
+            mantissa += ".0";
+            dot_pos = mantissa.find('.');
         }
 
         std::string int_part = mantissa.substr(0, dot_pos);

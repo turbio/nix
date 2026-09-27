@@ -729,6 +729,11 @@ struct CompareValues
     bool operator()(Value * v1, Value * v2, std::string_view errorCtx) const
     {
         try {
+            if ((v1->type() == nInt || v1->type() == nRational) && (v2->type() == nInt || v2->type() == nRational)) {
+                const auto r1 = v1->type() == nInt ? NixRational(v1->integer()) : *v1->rational();
+                const auto r2 = v2->type() == nInt ? NixRational(v2->integer()) : *v2->rational();
+                return r1.v < r2.v;
+            }
             if (v1->type() == nFloat && v2->type() == nInt)
                 return v1->fpoint() < v2->integer().value;
             if (v1->type() == nInt && v2->type() == nFloat)

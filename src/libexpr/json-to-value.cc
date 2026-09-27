@@ -142,9 +142,9 @@ public:
         return true;
     }
 
-    bool number_float(number_float_t val, const string_t & s) override
+    bool number_float(number_float_t, const string_t & s) override
     {
-        rs->value(state).mkFloat(val);
+        rs->value(state).mkRational(s);
         rs->add();
         return true;
     }

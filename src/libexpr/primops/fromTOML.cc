@@ -4,11 +4,19 @@
 
 #include "expr-config-private.hh"
 
+#include <algorithm>
+#include <cctype>
 #include <sstream>
 
 #include <toml.hpp>
 
 namespace nix {
+
+static std::string sourceLocationText(const toml::source_location & loc)
+{
+    assert(loc.num_lines() == 1);
+    return loc.first_line().substr(loc.first_column_offset() - 1, loc.length());
+}
 
 #if HAVE_TOML11_4
 
@@ -120,9 +128,18 @@ static void prim_fromTOML(EvalState & state, CallSite callSite, Value * const * 
         case toml::value_t::integer:
             v.mkInt(toml::get<int64_t>(t));
             break;
-        case toml::value_t::floating:
-            v.mkFloat(toml::get<NixFloat>(t));
+        case toml::value_t::floating: {
+            auto source = sourceLocationText(t.location());
+            auto lower = source;
+            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
+            if (lower.find("inf") != std::string::npos || lower.find("nan") != std::string::npos) {
+                state.error<EvalError>("cannot convert TOML non-finite float '%1%' to a Nix rational", source)
+                    .atPos(noPos)
+                    .debugThrow();
+            }
+            v.mkRational(source);
             break;
+        }
         case toml::value_t::string: {
             auto s = toml::get<std::string_view>(t);
             forceNoNullByte(s);

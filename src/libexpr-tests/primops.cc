@@ -29,10 +29,10 @@ TEST_F(PrimOpTest, ceil)
     ASSERT_THAT(v, IsIntEq(2));
     auto intMin = eval("builtins.ceil (-4611686018427387904 - 4611686018427387904)");
     ASSERT_THAT(intMin, IsIntEq(std::numeric_limits<NixInt::Inner>::min()));
-    ASSERT_THROW(eval("builtins.ceil 1.0e200"), EvalError);
-    ASSERT_THROW(eval("builtins.ceil -1.0e200"), EvalError);
-    ASSERT_THROW(eval("builtins.ceil (1.0e200 * 1.0e200)"), EvalError);  // inf
-    ASSERT_THROW(eval("builtins.ceil (-1.0e200 * 1.0e200)"), EvalError); // -inf
+    ASSERT_THROW(eval("builtins.ceil 1.0e200"), EvalError);              // TODO(turbio):
+    ASSERT_THROW(eval("builtins.ceil -1.0e200"), EvalError);             // TODO(turbio):
+    ASSERT_THROW(eval("builtins.ceil (1.0e200 * 1.0e200)"), EvalError);  // TODO(turbio):
+    ASSERT_THROW(eval("builtins.ceil (-1.0e200 * 1.0e200)"), EvalError); // TODO(turbio):
     // Under floats this expression was NaN (Inf - Inf) and ceil(NaN) threw.
     // Under rationals the arithmetic is exact, so the expression is exactly 0
     // and ceil returns 0. Pin the new behavior.
@@ -48,10 +48,10 @@ TEST_F(PrimOpTest, floor)
     ASSERT_THAT(v, IsIntEq(1));
     auto intMin = eval("builtins.ceil (-4611686018427387904 - 4611686018427387904)");
     ASSERT_THAT(intMin, IsIntEq(std::numeric_limits<NixInt::Inner>::min()));
-    ASSERT_THROW(eval("builtins.ceil 1.0e200"), EvalError);
-    ASSERT_THROW(eval("builtins.ceil -1.0e200"), EvalError);
-    ASSERT_THROW(eval("builtins.ceil (1.0e200 * 1.0e200)"), EvalError);  // inf
-    ASSERT_THROW(eval("builtins.ceil (-1.0e200 * 1.0e200)"), EvalError); // -inf
+    ASSERT_THROW(eval("builtins.ceil 1.0e200"), EvalError);              // TODO(turbio):
+    ASSERT_THROW(eval("builtins.ceil -1.0e200"), EvalError);             // TODO(turbio):
+    ASSERT_THROW(eval("builtins.ceil (1.0e200 * 1.0e200)"), EvalError);  // TODO(turbio):
+    ASSERT_THROW(eval("builtins.ceil (-1.0e200 * 1.0e200)"), EvalError); // TODO(turbio):
     // Under floats this expression was NaN (Inf - Inf) and floor(NaN) threw.
     // Under rationals the arithmetic is exact, so the expression is exactly 0
     // and floor returns 0. Pin the new behavior.
@@ -601,6 +601,21 @@ TEST_F(PrimOpTest, toJSONRationalNegativeBeyondDoubleRange)
     ASSERT_THAT(v, IsStringEq("null"));
 }
 
+TEST_F(PrimOpTest, fromJSONFloatProducesRational)
+{
+    ASSERT_THAT(eval("builtins.typeOf (builtins.fromJSON \"1.5\")"), IsStringEq("float"));
+    ASSERT_THAT(eval("(builtins.fromJSON \"1.5\") == 1.5"), IsTrue());
+    ASSERT_THAT(eval("(builtins.fromJSON \"1e6\") == 1000000.0"), IsTrue());
+}
+
+TEST_F(PrimOpTest, fromTOMLFloatProducesRational)
+{
+    ASSERT_THAT(eval("builtins.typeOf (builtins.fromTOML \"v = 1.5\").v"), IsStringEq("float"));
+    ASSERT_THAT(eval("(builtins.fromTOML \"v = 1.5\").v == 1.5"), IsTrue());
+    ASSERT_THAT(eval("(builtins.fromTOML \"v = 1e6\").v == 1000000.0"), IsTrue());
+    ASSERT_THAT(eval("(builtins.fromTOML \"v = 1_000.5\").v == 1000.5"), IsTrue());
+}
+
 TEST_F(PrimOpTest, bitOr)
 {
     auto v = eval("builtins.bitOr 1 2");
@@ -623,6 +638,30 @@ TEST_F(PrimOpTest, lessThanTrue)
 {
     auto v = eval("builtins.lessThan 1 3");
     ASSERT_THAT(v, IsTrue());
+}
+
+TEST_F(PrimOpTest, lessThanRationalFalse)
+{
+    auto v = eval("builtins.lessThan 1.0 0.0");
+    ASSERT_THAT(v, IsFalse());
+}
+
+TEST_F(PrimOpTest, lessThanRationalTrue)
+{
+    auto v = eval("builtins.lessThan 0.0 1.0");
+    ASSERT_THAT(v, IsTrue());
+}
+
+TEST_F(PrimOpTest, lessThanRationalMixedWithInt)
+{
+    ASSERT_THAT(eval("builtins.lessThan 0 1.0"), IsTrue());
+    ASSERT_THAT(eval("builtins.lessThan 1.0 0"), IsFalse());
+}
+
+TEST_F(PrimOpTest, lessThanRationalSupportsLeqDesugaring)
+{
+    ASSERT_THAT(eval("0.0 <= 1.0"), IsTrue());
+    ASSERT_THAT(eval("1.0 <= 0.0"), IsFalse());
 }
 
 TEST_F(PrimOpTest, toStringAttrsThrows)
