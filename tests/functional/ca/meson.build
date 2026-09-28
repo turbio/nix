@@ -23,6 +23,7 @@ suites += {
     'post-hook.sh',
     'recursive.sh',
     'repl.sh',
+    'self-input.sh',
     'selfref-gc.sh',
     'signatures.sh',
     'substitute.sh',
