@@ -106,6 +106,12 @@ INSTANTIATE_TEST_SUITE_P(
         RationalStringCase{"1.23456e7", 1.23456e7, "1.23456e+07", "12345600.000000"},
         RationalStringCase{"1.23456e-5", 1.23456e-5, "1.23456e-05", "0.000012"},
 
+        // --- Signed and zero padded exponents (toml likes 5e+22) ---
+        RationalStringCase{"1.0e+6", 1.0e+6, "1e+06", "1000000.000000"},
+        RationalStringCase{"5.0e+15", 5.0e+15, "5e+15", "5000000000000000.000000"},
+        RationalStringCase{"1.0e-05", 1.0e-05, "1e-05", "0.000010"},
+        RationalStringCase{"1.0e010", 1.0e010, "1e+10", "10000000000.000000"},
+
         // --- Rounding up at 7th digit (not a tie, double and rational agree) ---
         RationalStringCase{"0.1234567", 0.1234567, "0.123457", "0.123457"},
         RationalStringCase{"1.234567", 1.234567, "1.23457", "1.234567"},

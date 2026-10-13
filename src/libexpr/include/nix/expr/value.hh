@@ -171,10 +171,22 @@ struct NixRational
         cpp_int exp10 = 0;
         if (e_pos != std::string::npos) {
             std::string exp_str = normalized.substr(e_pos + 1);
-            if (exp_str.empty()) {
-                throw std::invalid_argument("missing exponent digits");
+            // cpp_int wont take a leading + and reads leading zeros as
+            // octal, so deal with the sign and zeros ourselves
+            bool exp_negative = false;
+            if (!exp_str.empty() && (exp_str[0] == '+' || exp_str[0] == '-')) {
+                exp_negative = (exp_str[0] == '-');
+                exp_str.erase(0, 1);
             }
+            if (exp_str.empty() || exp_str.find_first_not_of("0123456789") != std::string::npos) {
+                throw std::invalid_argument("bad exponent digits");
+            }
+            std::size_t exp_nz = exp_str.find_first_not_of('0');
+            exp_str = exp_nz == std::string::npos ? "0" : exp_str.substr(exp_nz);
             exp10 = cpp_int(exp_str);
+            if (exp_negative) {
+                exp10 = -exp10;
+            }
         }
 
         std::size_t dot_pos = mantissa.find('.');
